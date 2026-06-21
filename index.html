@@ -133,6 +133,12 @@
   .opening .diff button[aria-pressed="true"][data-level="0"]{background:#5a7d3a;color:#f2efe4;}
   .opening .diff button[aria-pressed="true"][data-level="1"]{background:#c79a2e;color:#2a2410;}
   .opening .diff button[aria-pressed="true"][data-level="4"]{background:#9c3322;color:#f6e9e4;}
+  /* who-opens selected state */
+  #openWho button[aria-pressed="true"]{background:var(--ink);color:var(--paper);}
+  /* Start button disabled until both choices made */
+  .pane button.primary:disabled{background:#e4e0d3;color:#b0ab98;
+    border-color:#cbc6b4;cursor:not-allowed;}
+  .pane button.primary:disabled:hover{background:#e4e0d3;color:#b0ab98;}
   .opening.hidden{display:none;}
 
   /* panes within the overlay */
@@ -152,6 +158,27 @@
     text-transform:uppercase;padding:13px 38px;border:1px solid var(--ink);
     background:var(--ink);color:var(--paper);cursor:pointer;transition:background .12s,color .12s;}
   .pane button.primary:hover{background:transparent;color:var(--ink);}
+
+  /* end-of-game result overlay */
+  .result{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(233,230,220,.82);backdrop-filter:blur(2px);z-index:6;}
+  .result.hidden{display:none;}
+  .result-card{display:flex;flex-direction:column;align-items:center;gap:14px;
+    padding:30px 40px;background:var(--paper);border:1px solid var(--ink);
+    box-shadow:0 18px 50px -22px rgba(0,0,0,.55);
+    animation:resultPop .34s cubic-bezier(.2,.9,.3,1.2);}
+  @keyframes resultPop{0%{transform:scale(.85);opacity:0;}100%{transform:scale(1);opacity:1;}}
+  .result-headline{font-family:"Iowan Old Style",Georgia,serif;font-size:34px;
+    font-weight:600;text-transform:uppercase;letter-spacing:.03em;line-height:1;}
+  .result.win .result-headline{color:var(--p1);}
+  .result.lose .result-headline{color:var(--p2);}
+  .result.draw .result-headline{color:#55513f;}
+  .result-sub{font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.04em;
+    color:#6a6656;text-align:center;}
+  .result-card button.primary{margin-top:4px;font-family:ui-monospace,monospace;font-size:13px;
+    letter-spacing:.08em;text-transform:uppercase;padding:12px 30px;border:1px solid var(--ink);
+    background:var(--ink);color:var(--paper);cursor:pointer;transition:background .12s,color .12s;}
+  .result-card button.primary:hover{background:transparent;color:var(--ink);}
 </style>
 </head>
 <body>
@@ -193,14 +220,23 @@
       </div>
       <div class="setup">
         <h2>Who opens?</h2>
-        <div class="choices">
+        <div class="choices" id="openWho">
           <button data-open="p1">You</button>
           <button data-open="p2">Red</button>
           <button data-open="random">Toss-up</button>
         </div>
       </div>
+      <button class="primary" id="startGame" disabled>Start</button>
     </div>
 
+  </div>
+
+  <div class="result hidden" id="result">
+    <div class="result-card" id="resultCard">
+      <div class="result-headline" id="resultHeadline">You win</div>
+      <div class="result-sub" id="resultSub"></div>
+      <button class="primary" id="resultAgain">Play again</button>
+    </div>
   </div>
 </div>
 
@@ -568,18 +604,26 @@ function checkEnd(){
 
 function endGame(winner){
   gameOver=true; render();
-  if(winner==='p1'){ statusEl.textContent='The olive institute prevails.'; statusEl.className='status win'; }
-  else if(winner==='p2'){ statusEl.textContent='The oxblood institute prevails.'; statusEl.className='status lose'; }
-  else { statusEl.textContent='Stalemate — both institutes snookered. A draw.'; statusEl.className='status'; }
+  const resultEl=document.getElementById('result');
+  const head=document.getElementById('resultHeadline');
+  const sub=document.getElementById('resultSub');
+  let cls, headline, subtext;
+  if(winner==='p1'){ cls='win';  headline='You win';  subtext='The olive institute prevails.'; }
+  else if(winner==='p2'){ cls='lose'; headline='You lose'; subtext='The oxblood institute prevails.'; }
+  else { cls='draw'; headline='A draw'; subtext='Both institutes snookered.'; }
+  statusEl.textContent=subtext; statusEl.className='status '+(cls==='draw'?'':cls);
+  head.textContent=headline; sub.textContent=subtext;
+  resultEl.className='result '+cls+' hidden';   // colour set, still hidden
+  // brief beat so the final move paints before the pop
+  setTimeout(()=>resultEl.classList.remove('hidden'), 320);
 }
 
 document.getElementById('reset').addEventListener('click',()=>start(false));
+document.getElementById('resultAgain').addEventListener('click',()=>start(false));
 
-// difficulty pills (footer)
+// difficulty pills (footer) — control the live level during play
 function syncDifficultyUI(){
   document.querySelectorAll('.pill').forEach(p=>
-    p.setAttribute('aria-pressed', parseInt(p.dataset.level,10)===currentLevel ? 'true':'false'));
-  document.querySelectorAll('#openDiff button').forEach(p=>
     p.setAttribute('aria-pressed', parseInt(p.dataset.level,10)===currentLevel ? 'true':'false'));
 }
 document.querySelectorAll('.pill').forEach(pill=>{
@@ -588,13 +632,33 @@ document.querySelectorAll('.pill').forEach(pill=>{
     syncDifficultyUI();
   });
 });
-// difficulty buttons inside the opening prompt
+
+// ---- setup pane: both choices must be made explicitly ----
+let pendingLevel=null, pendingOpener=null;
+const startBtn=document.getElementById('startGame');
+
+function refreshStartBtn(){
+  startBtn.disabled = (pendingLevel===null || pendingOpener===null);
+}
+// difficulty selection in the setup pane
 document.querySelectorAll('#openDiff button').forEach(btn=>{
   btn.addEventListener('click',()=>{
-    currentLevel=parseInt(btn.dataset.level,10);
-    syncDifficultyUI();
+    pendingLevel=parseInt(btn.dataset.level,10);
+    document.querySelectorAll('#openDiff button').forEach(b=>
+      b.setAttribute('aria-pressed', b===btn ? 'true':'false'));
+    refreshStartBtn();
   });
 });
+// opener selection in the setup pane
+document.querySelectorAll('#openWho button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    pendingOpener=btn.dataset.open;
+    document.querySelectorAll('#openWho button').forEach(b=>
+      b.setAttribute('aria-pressed', b===btn ? 'true':'false'));
+    refreshStartBtn();
+  });
+});
+
 const openingEl=document.getElementById('opening');
 const panes={welcome:document.getElementById('paneWelcome'),
              rules:document.getElementById('paneRules'),
@@ -604,9 +668,23 @@ function showPane(name){
   for(const k in panes) panes[k].classList.toggle('hidden', k!==name);
 }
 
+// clear both selections each time the setup pane is presented
+function resetSetupChoices(){
+  pendingLevel=null; pendingOpener=null;
+  document.querySelectorAll('#openDiff button, #openWho button').forEach(b=>
+    b.setAttribute('aria-pressed','false'));
+  refreshStartBtn();
+}
+
 // flow buttons
 document.getElementById('toRules').addEventListener('click',()=>showPane('rules'));
-document.getElementById('toSetup').addEventListener('click',()=>{ showPane('setup'); syncDifficultyUI(); });
+document.getElementById('toSetup').addEventListener('click',()=>{ resetSetupChoices(); showPane('setup'); });
+startBtn.addEventListener('click',()=>{
+  if(pendingLevel===null || pendingOpener===null) return;
+  currentLevel=pendingLevel;
+  syncDifficultyUI();
+  beginGame(pendingOpener);
+});
 
 // start a fresh board. firstTime -> full welcome flow; otherwise jump to setup.
 function start(firstTime){
@@ -614,10 +692,11 @@ function start(firstTime){
   selected=null; turn=null; gameOver=false; last={from:null,to:null};
   build();
   statusEl.textContent=' '; statusEl.className='status';
+  resetSetupChoices();
   showPane(firstTime ? 'welcome' : 'setup');
-  if(!firstTime) syncDifficultyUI();
   openingEl.classList.remove('hidden');
   document.getElementById('gamechrome').classList.add('hidden');
+  document.getElementById('result').classList.add('hidden');
 }
 
 function beginGame(opener){
@@ -639,10 +718,6 @@ function beginGame(opener){
     setTimeout(redMove,300);
   }
 }
-
-document.querySelectorAll('.opening button[data-open]').forEach(b=>{
-  b.addEventListener('click',()=>beginGame(b.dataset.open));
-});
 
 start(true);
 </script>
