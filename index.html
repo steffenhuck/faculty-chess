@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Faculty — 5×5</title>
+<style>
+  :root{
+    --ink:#1c1c18;
+    --paper:#e9e6dc;
+    --line:#b8b2a0;
+    --p1:#3d4d20;      /* green — institute olive */
+    --p2:#6b2020;      /* red — oxblood */
+    --light:#dcd7c8;
+    --dark:#c7c1ae;
+    --move:#7c8f4a;
+    --cap:#a23b2e;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;min-height:100%;}
+  body{
+    background:var(--paper);color:var(--ink);
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    display:flex;flex-direction:column;align-items:center;
+    padding:26px 16px 48px;-webkit-font-smoothing:antialiased;
+  }
+  header{text-align:center;margin-bottom:18px;max-width:540px;}
+  h1{font-size:23px;font-weight:600;letter-spacing:.02em;margin:0 0 6px;text-transform:uppercase;}
+  .sub{font-size:12.5px;color:#6a6656;line-height:1.5;font-style:italic;}
+  .boardwrap{
+    position:relative;padding:26px;
+    background:repeating-linear-gradient(45deg,#efece2 0 2px,transparent 2px 9px),#efece2;
+    border:1px solid var(--line);
+    box-shadow:0 1px 0 #fff inset,0 14px 40px -22px rgba(0,0,0,.5);
+  }
+  .board{
+    display:grid;grid-template-columns:repeat(5,68px);grid-template-rows:repeat(5,68px);
+    border:2px solid var(--ink);
+  }
+  .sq{position:relative;display:flex;align-items:center;justify-content:center;
+    border:.5px solid rgba(28,28,24,.14);}
+  .sq.light{background:var(--light);}
+  .sq.dark{background:var(--dark);}
+  .sq .coord{position:absolute;left:3px;top:2px;font-size:8.5px;color:#9a9580;
+    font-family:ui-monospace,monospace;pointer-events:none;user-select:none;}
+  .sq .dot{position:absolute;width:16px;height:16px;border-radius:50%;
+    background:var(--move);opacity:.55;pointer-events:none;}
+  .sq.capt::after{content:"";position:absolute;inset:4px;border:3px solid var(--cap);
+    border-radius:50%;opacity:.7;pointer-events:none;}
+  .sq.sel{outline:3px solid var(--p1);outline-offset:-3px;}
+  .sq.lastfrom{box-shadow:inset 0 0 0 3px rgba(107,32,32,.35);}
+  .sq.lastto{box-shadow:inset 0 0 0 3px rgba(107,32,32,.6);}
+  .piece{
+    width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-family:ui-monospace,"SF Mono",monospace;font-weight:600;user-select:none;position:relative;
+    box-shadow:0 3px 8px -3px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.15) inset;
+    transition:transform .12s ease;z-index:2;
+  }
+  .piece.p1{cursor:grab;}
+  .piece.p1:active{cursor:grabbing;}
+  .piece.dragging{opacity:.3;}
+  .piece .rank{font-size:20px;line-height:1;}
+  .piece .sz{position:absolute;bottom:5px;font-size:7px;letter-spacing:.05em;opacity:.85;font-weight:500;}
+  .p1{background:var(--p1);color:#e9e6dc;}
+  .p2{background:var(--p2);color:#f0e4e0;}
+  .piece.moved{animation:pop .28s ease;}
+  @keyframes pop{0%{transform:scale(.7);}60%{transform:scale(1.12);}100%{transform:scale(1);}}
+  .status{margin-top:18px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;
+    color:#55513f;font-family:ui-monospace,monospace;min-height:16px;text-align:center;}
+  .status.win{color:var(--p1);font-weight:600;}
+  .status.lose{color:var(--p2);font-weight:600;}
+
+  /* head-to-head score strip */
+  .score{margin-top:12px;display:flex;align-items:center;gap:14px;
+    font-family:ui-monospace,monospace;}
+  .score .team{display:flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.04em;}
+  .score .swatch{width:13px;height:13px;border-radius:50%;}
+  .score .swatch.olive{background:var(--p1);}
+  .score .swatch.ox{background:var(--p2);}
+  .score .n{font-size:17px;font-weight:600;color:var(--ink);min-width:14px;text-align:center;}
+  .score .vs{font-size:10px;color:#a39e8a;letter-spacing:.12em;}
+  .score .team.ox{flex-direction:row-reverse;}
+
+  /* segmented difficulty control — each pill carries its colour at rest */
+  .pills{margin-top:20px;display:inline-flex;border:1px solid var(--ink);
+    background:var(--paper);overflow:hidden;}
+  .pill{font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.04em;
+    padding:9px 18px;cursor:pointer;text-transform:uppercase;
+    border:none;border-right:1px solid var(--line);
+    transition:background .12s,color .12s;}
+  .pill:last-child{border-right:none;}
+  /* resting colours: tinted, legible before any click */
+  .pill[data-level="0"]{background:#dbe6cb;color:#41602a;}
+  .pill[data-level="1"]{background:#f0e2bd;color:#8a6a14;}
+  .pill[data-level="4"]{background:#ecccc4;color:#8c3022;}
+  .pill:hover{filter:brightness(.96);}
+  /* active: saturated fill of the same hue */
+  .pill[data-level="0"][aria-pressed="true"]{background:#5a7d3a;color:#f2efe4;}
+  .pill[data-level="1"][aria-pressed="true"]{background:#c79a2e;color:#2a2410;}
+  .pill[data-level="4"][aria-pressed="true"]{background:#9c3322;color:#f6e9e4;}
+
+  .legend{margin-top:20px;display:flex;gap:20px;flex-wrap:wrap;justify-content:center;
+    font-size:11.5px;color:#55513f;max-width:560px;}
+  .legend div{display:flex;align-items:center;gap:7px;}
+  .chip{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-family:ui-monospace,monospace;font-size:11px;font-weight:600;color:#e9e6dc;background:#6a6656;}
+  .bar{margin-top:22px;}
+  button.reset{font-family:inherit;font-size:13px;letter-spacing:.08em;padding:12px 34px;
+    border:1px solid var(--ink);background:var(--ink);color:var(--paper);
+    cursor:pointer;text-transform:uppercase;transition:background .12s,color .12s;}
+  button.reset:hover{background:transparent;color:var(--ink);}
+  /* opening prompt overlay */
+  .boardwrap{position:relative;}
+  .opening{position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:26px;
+    background:rgba(233,230,220,.94);backdrop-filter:blur(2px);z-index:5;}
+  .opening .setup{display:flex;flex-direction:column;align-items:center;gap:12px;}
+  .opening h2{font-family:ui-monospace,monospace;font-size:13px;letter-spacing:.12em;
+    text-transform:uppercase;color:#55513f;margin:0;font-weight:600;}
+  .opening .choices{display:inline-flex;border:1px solid var(--ink);overflow:hidden;}
+  .opening .choices button{font-family:ui-monospace,monospace;font-size:13px;
+    letter-spacing:.04em;padding:12px 22px;cursor:pointer;text-transform:uppercase;
+    border:none;border-right:1px solid var(--line);background:var(--paper);color:var(--ink);
+    transition:background .12s,color .12s;}
+  .opening .choices button:last-child{border-right:none;}
+  .opening .choices button:hover{background:var(--ink);color:var(--paper);}
+  /* difficulty buttons carry their colour, and show which is selected */
+  .opening .diff button[data-level="0"]{background:#dbe6cb;color:#41602a;}
+  .opening .diff button[data-level="1"]{background:#f0e2bd;color:#8a6a14;}
+  .opening .diff button[data-level="4"]{background:#ecccc4;color:#8c3022;}
+  .opening .diff button[aria-pressed="true"][data-level="0"]{background:#5a7d3a;color:#f2efe4;}
+  .opening .diff button[aria-pressed="true"][data-level="1"]{background:#c79a2e;color:#2a2410;}
+  .opening .diff button[aria-pressed="true"][data-level="4"]{background:#9c3322;color:#f6e9e4;}
+  .opening.hidden{display:none;}
+
+  /* panes within the overlay */
+  .pane{display:flex;flex-direction:column;align-items:center;gap:22px;
+    padding:0 26px;max-width:340px;text-align:center;}
+  .pane.hidden{display:none;}
+  .pane h2.big{font-family:"Iowan Old Style",Georgia,serif;font-size:26px;
+    letter-spacing:.02em;text-transform:uppercase;color:var(--ink);margin:0;font-weight:600;}
+  .pane .epigraph{font-family:"Iowan Old Style",Georgia,serif;font-style:italic;
+    font-size:14.5px;line-height:1.55;color:#55513f;margin:0;}
+  .pane .rules{list-style:none;margin:0;padding:0;text-align:left;
+    display:flex;flex-direction:column;gap:11px;}
+  .pane .rules li{font-size:13px;line-height:1.5;color:#3c3930;padding-left:16px;position:relative;}
+  .pane .rules li::before{content:"—";position:absolute;left:0;color:#a39e8a;}
+  .pane .rules b{font-family:ui-monospace,monospace;font-weight:600;}
+  .pane button.primary{font-family:ui-monospace,monospace;font-size:13px;letter-spacing:.08em;
+    text-transform:uppercase;padding:13px 38px;border:1px solid var(--ink);
+    background:var(--ink);color:var(--paper);cursor:pointer;transition:background .12s,color .12s;}
+  .pane button.primary:hover{background:transparent;color:var(--ink);}
+</style>
+</head>
+<body>
+<header>
+  <h1>Faculty Chess</h1>
+  <div class="sub">Two institutes, three ranks each. Out-manoeuvre the rival faculty until nothing of it remains.</div>
+</header>
+
+<div class="boardwrap">
+  <div class="board" id="board"></div>
+  <div class="opening hidden" id="opening">
+
+    <div class="pane" id="paneWelcome">
+      <p class="epigraph">A recreation of faculty life, in which two institutes compete by the
+        only means available to them. Last faculty standing prevails.</p>
+      <button class="primary" id="toRules">Let's play</button>
+    </div>
+
+    <div class="pane hidden" id="paneRules">
+      <h2>How it works</h2>
+      <ul class="rules">
+        <li>Each piece moves a fixed distance in a straight line — full professor <b>3</b>,
+          associate <b>2</b>, assistant <b>1</b>. It must spend the whole distance, and can't jump.</li>
+        <li>Land on a rival piece to remove it.</li>
+        <li>Take the other faculty's last piece to win.</li>
+      </ul>
+      <button class="primary" id="toSetup">Next</button>
+    </div>
+
+    <div class="pane hidden" id="paneSetup">
+      <div class="setup">
+        <h2>Red's strength</h2>
+        <div class="choices diff" id="openDiff">
+          <button data-level="0">Easy</button>
+          <button data-level="1">Harder</button>
+          <button data-level="4">Hardest</button>
+        </div>
+      </div>
+      <div class="setup">
+        <h2>Who opens?</h2>
+        <div class="choices">
+          <button data-open="p1">You</button>
+          <button data-open="p2">Red</button>
+          <button data-open="random">Toss-up</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="status" id="status">Your move.</div>
+
+<div class="score" id="score">
+  <span class="team olive"><span class="swatch olive"></span><span class="n" id="nOlive">3</span></span>
+  <span class="vs">VS</span>
+  <span class="team ox"><span class="swatch ox"></span><span class="n" id="nOx">3</span></span>
+</div>
+
+<div class="pills" id="pills" role="group" aria-label="Red's difficulty">
+  <button class="pill" data-level="0" aria-pressed="false">Easy</button>
+  <button class="pill" data-level="1" aria-pressed="false">Harder</button>
+  <button class="pill" data-level="4" aria-pressed="true">Hardest</button>
+</div>
+
+<div class="legend">
+  <div><span class="chip">F</span> Full professor · exactly 3</div>
+  <div><span class="chip">A</span> Associate · exactly 2</div>
+  <div><span class="chip">a</span> Assistant · exactly 1</div>
+</div>
+
+<div class="bar">
+  <button class="reset" id="reset">New game</button>
+</div>
+
+<script>
+const COLS=['a','b','c','d','e'];
+const REACH={F:3,A:2,a:1};
+const board=document.getElementById('board');
+const statusEl=document.getElementById('status');
+const nOlive=document.getElementById('nOlive');
+const nOx=document.getElementById('nOx');
+let currentLevel=4;   // default: Hardest (matches the pressed pill)
+
+const START={
+  e1:{side:'p1',rank:'F',label:'F1'},
+  d1:{side:'p1',rank:'A',label:'A1'},
+  e2:{side:'p1',rank:'a',label:'a1'},
+  a5:{side:'p2',rank:'F',label:'F2'},
+  b5:{side:'p2',rank:'A',label:'A2'},
+  a4:{side:'p2',rank:'a',label:'a2'},
+};
+let state={}, selected=null, turn='p1', gameOver=false, last={from:null,to:null};
+
+const col=id=>COLS.indexOf(id[0]);
+const row=id=>parseInt(id[1],10);
+const mk=(c,r)=>(c<0||c>4||r<1||r>5)?null:COLS[c]+r;
+
+// legal destinations for a piece at id within position `pos`.
+// EXACT-distance rule: a piece must spend its full allowance
+// (F=3, A=2, a=1). Orthogonal step costs 1, diagonal costs 2; turns
+// allowed; cannot pass through any occupied square; may END on an enemy.
+// A square is legal only if its CHEAPEST reachable cost equals the allowance,
+// OR it is an enemy reachable at exactly the allowance.
+function moves(id,pos){
+  pos=pos||state;
+  const p=pos[id]; if(!p) return [];
+  const allow=REACH[p.rank];
+  const start=COLS.indexOf(id[0])+','+parseInt(id[1],10);
+  const dirs=[[1,0,1],[-1,0,1],[0,1,1],[0,-1,1]]; // orthogonal only, each step cost 1
+  // explore all empty paths up to the allowance; record, per cell,
+  // the set of exact costs at which it can be reached.
+  const reachCost={};   // cellKey -> Set of costs (empty cells only, as pass-through)
+  const landEmpty={};   // cellKey -> true if reachable at EXACTLY allow (empty)
+  const landCapt={};    // enemy cell -> true if reachable at EXACTLY allow
+  reachCost[start]=new Set([0]);
+  let frontier=[[col(id),row(id),0]];
+  while(frontier.length){
+    const next=[];
+    for(const [c,r,cost] of frontier){
+      for(const [dc,dr,w] of dirs){
+        const nc=c+dc, nr=r+dr, nid=mk(nc,nr);
+        if(!nid) continue;
+        const ncost=cost+w;
+        if(ncost>allow) continue;
+        const key=nc+','+nr;
+        const occ=pos[nid];
+        if(occ){
+          if(occ.side!==p.side && ncost===allow) landCapt[nid]=true;
+          continue;                       // never pass through a piece
+        }
+        // empty cell: can we stand here mid-path and continue?
+        if(!reachCost[key]) reachCost[key]=new Set();
+        if(!reachCost[key].has(ncost)){
+          reachCost[key].add(ncost);
+          if(ncost===allow) landEmpty[key]=true;
+          if(ncost<allow) next.push([nc,nr,ncost]); // keep spending
+        }
+      }
+    }
+    frontier=next;
+  }
+  const out=[];
+  for(const key in landEmpty){
+    const [c,r]=key.split(',').map(Number);
+    out.push({to:mk(c,r),capture:false});
+  }
+  for(const nid in landCapt) out.push({to:nid,capture:true});
+  return out;
+}
+
+function allMoves(side,pos){
+  pos=pos||state;
+  const list=[];
+  for(const id in pos) if(pos[id].side===side)
+    for(const m of moves(id,pos)) list.push({from:id,...m});
+  return list;
+}
+
+function build(){
+  board.innerHTML='';
+  for(let r=5;r>=1;r--) for(let c=0;c<5;c++){
+    const id=COLS[c]+r;
+    const sq=document.createElement('div');
+    sq.className='sq '+(((c+r)%2===0)?'dark':'light');
+    sq.dataset.id=id;
+    const co=document.createElement('span'); co.className='coord'; co.textContent=id;
+    sq.appendChild(co);
+    sq.addEventListener('click',()=>onSquare(id));
+    sq.addEventListener('dragover',e=>e.preventDefault());
+    sq.addEventListener('drop',e=>{e.preventDefault();
+      const from=e.dataTransfer.getData('text/plain'); tryMove(from,id);});
+    board.appendChild(sq);
+  }
+  render();
+}
+
+function render(){
+  document.querySelectorAll('.piece').forEach(p=>p.remove());
+  document.querySelectorAll('.sq').forEach(s=>{
+    s.classList.remove('sel','capt','lastfrom','lastto');
+    const d=s.querySelector('.dot'); if(d) d.remove();
+  });
+  if(last.from) board.querySelector(`[data-id="${last.from}"]`)?.classList.add('lastfrom');
+  if(last.to) board.querySelector(`[data-id="${last.to}"]`)?.classList.add('lastto');
+  for(const id in state){
+    const info=state[id];
+    const sq=board.querySelector(`[data-id="${id}"]`); if(!sq) continue;
+    const p=document.createElement('div');
+    p.className='piece '+info.side+(info.justMoved?' moved':'');
+    if(info.side==='p1' && turn==='p1' && !gameOver){p.draggable=true;
+      p.addEventListener('dragstart',e=>{p.classList.add('dragging');
+        e.dataTransfer.setData('text/plain',id); selectPiece(id);});
+      p.addEventListener('dragend',()=>p.classList.remove('dragging'));}
+    p.innerHTML=`<span class="rank">${info.rank}</span><span class="sz">${info.label}</span>`;
+    sq.appendChild(p);
+    info.justMoved=false;
+  }
+  if(selected){
+    board.querySelector(`[data-id="${selected}"]`)?.classList.add('sel');
+    for(const m of moves(selected)){
+      const sq=board.querySelector(`[data-id="${m.to}"]`);
+      if(m.capture) sq.classList.add('capt');
+      else{const dot=document.createElement('span');dot.className='dot';sq.appendChild(dot);}
+    }
+  }
+  const g=Object.values(state).filter(p=>p.side==='p1').length;
+  const r=Object.values(state).filter(p=>p.side==='p2').length;
+  nOlive.textContent=g; nOx.textContent=r;
+}
+
+function selectPiece(id){ selected=id; render(); }
+
+function onSquare(id){
+  if(gameOver||turn!=='p1') return;
+  const here=state[id];
+  if(here && here.side==='p1'){ selectPiece(selected===id?null:id); return; }
+  if(selected){ tryMove(selected,id); }
+}
+
+function tryMove(from,to){
+  if(!from||turn!=='p1'||gameOver) return;
+  const legal=moves(from).some(m=>m.to===to);
+  if(!legal){ selected=null; render(); return; }
+  doMove(from,to);
+  selected=null;
+  if(checkEnd()) return;
+  turn='p2'; statusEl.textContent='Red is deciding…'; statusEl.className='status';
+  render();
+  setTimeout(redMove,180);
+}
+
+function doMove(from,to){
+  const p=state[from]; delete state[from];
+  p.justMoved=true; state[to]=p; last={from,to};
+}
+
+// ---- Red's brains -------------------------------------------------
+// Piece values (full professor most precious). Evaluation is from RED's
+// point of view: positive = good for red (p2).
+const VAL={F:100,A:60,a:30};
+
+function applyMove(pos,m){            // returns a NEW position
+  const np={};
+  for(const k in pos) np[k]={...pos[k]};
+  const p=np[m.from]; delete np[m.from]; np[m.to]=p;
+  return np;
+}
+
+function evaluate(pos){
+  let score=0;
+  for(const id in pos){
+    const pc=pos[id];
+    score += (pc.side==='p2'? VAL[pc.rank] : -VAL[pc.rank]);
+  }
+  // light positional sense: reward threatening enemy pieces + mobility,
+  // small enough that material dominates. Keeps red from shuffling.
+  const redThreats=allMoves('p2',pos).filter(m=>m.capture).length;
+  const oppThreats=allMoves('p1',pos).filter(m=>m.capture).length;
+  score += 2*redThreats - 2*oppThreats;
+  return score;
+}
+
+function terminal(pos){
+  const r=Object.values(pos).filter(p=>p.side==='p2').length;
+  const g=Object.values(pos).filter(p=>p.side==='p1').length;
+  if(r===0) return -10000;   // red wiped out: very bad for red
+  if(g===0) return  10000;   // green wiped out: red wins
+  return null;
+}
+
+// compact position key for the transposition table
+function posKey(pos,redToMove,depth){
+  const parts=[];
+  for(const id in pos){ const p=pos[id]; parts.push(id+p.side[1]+p.rank); }
+  parts.sort();
+  return parts.join('')+'|'+(redToMove?'R':'G')+'|'+depth;
+}
+
+// order moves so alpha-beta prunes hard: captures first, biggest victim first.
+function orderMoves(opts,pos){
+  return opts.slice().sort((a,b)=>{
+    const va=a.capture?VAL[pos[a.to].rank]:0;
+    const vb=b.capture?VAL[pos[b.to].rank]:0;
+    return vb-va;
+  });
+}
+
+let TT=new Map();   // transposition table, cleared each top-level decision
+
+// alpha-beta with ordering + memoisation. `redToMove` = maximising for red.
+function search(pos,depth,redToMove,alpha,beta){
+  const t=terminal(pos);
+  if(t!==null){
+    // prefer faster wins / slower losses by nudging with remaining depth
+    return t>0 ? t+depth : t-depth;
+  }
+  if(depth===0) return evaluate(pos);
+
+  const key=posKey(pos,redToMove,depth);
+  const cached=TT.get(key);
+  if(cached!==undefined) return cached;
+
+  const side=redToMove?'p2':'p1';
+  let opts=allMoves(side,pos);
+  if(opts.length===0){ const v=evaluate(pos); TT.set(key,v); return v; }
+  opts=orderMoves(opts,pos);
+
+  let best;
+  if(redToMove){
+    best=-Infinity;
+    for(const m of opts){
+      const v=search(applyMove(pos,m),depth-1,false,alpha,beta);
+      if(v>best) best=v;
+      if(best>alpha) alpha=best;
+      if(alpha>=beta) break;
+    }
+  }else{
+    best=Infinity;
+    for(const m of opts){
+      const v=search(applyMove(pos,m),depth-1,true,alpha,beta);
+      if(v<best) best=v;
+      if(best<beta) beta=best;
+      if(alpha>=beta) break;
+    }
+  }
+  TT.set(key,best);
+  return best;
+}
+
+// difficulty level -> behaviour. Easy(0) random; Harder(1) one-ply;
+// Hardest(4) iterative-deepening under a time budget (plays as deep as it can).
+const TIME_BUDGET_MS=1200;
+const MAX_DEPTH=14;
+
+function chooseRedMove(){
+  const level=currentLevel;
+  let opts=allMoves('p2');
+  if(opts.length===0) return null;
+  if(level===0){                       // EASY: pure random
+    return opts[Math.floor(Math.random()*opts.length)];
+  }
+  if(level===1){                       // HARDER: greedy one-ply
+    TT=new Map();
+    let best=-Infinity, pick=[];
+    for(const m of orderMoves(opts,state)){
+      const v=search(applyMove(state,m),0,false,-Infinity,Infinity);
+      if(v>best){ best=v; pick=[m]; } else if(v===best){ pick.push(m); }
+    }
+    return pick[Math.floor(Math.random()*pick.length)];
+  }
+  // HARDEST: iterative deepening, keep the best move from the deepest
+  // search that finished within the time budget.
+  const start=performance.now();
+  let bestMove=opts[0];
+  for(let depth=2; depth<=MAX_DEPTH; depth++){
+    TT=new Map();
+    let best=-Infinity, pick=[];
+    let aborted=false;
+    for(const m of orderMoves(opts,state)){
+      const v=search(applyMove(state,m),depth-1,false,-Infinity,Infinity);
+      if(v>best){ best=v; pick=[m]; } else if(v===best){ pick.push(m); }
+      if(performance.now()-start>TIME_BUDGET_MS){ aborted=true; break; }
+    }
+    if(!aborted) bestMove=pick[Math.floor(Math.random()*pick.length)];
+    if(aborted || performance.now()-start>TIME_BUDGET_MS) break;
+    if(Math.abs(best)>=9000) break;    // forced win/loss found: stop deepening
+  }
+  return bestMove;
+}
+
+function redMove(){
+  if(gameOver) return;
+  const m=chooseRedMove();
+  if(!m){                       // Red has pieces but no legal move: snookered
+    handoffToPlayer(true);      // pass back, flag red snookered
+    return;
+  }
+  doMove(m.from,m.to);
+  if(checkEnd()) return;
+  handoffToPlayer(false);
+}
+
+// hand the turn to the human; if the human is also snookered, resolve.
+function handoffToPlayer(redWasSnookered){
+  turn='p1';
+  const greenStuck=allMoves('p1').length===0;
+  if(greenStuck && redWasSnookered){ endGame('draw'); return; }
+  if(greenStuck){
+    // green snookered but red can move: skip green, let red go again
+    statusEl.textContent='You are snookered — no legal move. Red plays again.';
+    statusEl.className='status';
+    render();
+    setTimeout(redMove,800);
+    return;
+  }
+  statusEl.textContent = redWasSnookered
+    ? 'Red was snookered. Your move.'
+    : 'Your move.';
+  statusEl.className='status';
+  render();
+}
+
+function checkEnd(){
+  const g=Object.values(state).filter(p=>p.side==='p1').length;
+  const r=Object.values(state).filter(p=>p.side==='p2').length;
+  if(r===0){ endGame('p1'); return true; }
+  if(g===0){ endGame('p2'); return true; }
+  return false;
+}
+
+function endGame(winner){
+  gameOver=true; render();
+  if(winner==='p1'){ statusEl.textContent='The olive institute prevails.'; statusEl.className='status win'; }
+  else if(winner==='p2'){ statusEl.textContent='The oxblood institute prevails.'; statusEl.className='status lose'; }
+  else { statusEl.textContent='Stalemate — both institutes snookered. A draw.'; statusEl.className='status'; }
+}
+
+document.getElementById('reset').addEventListener('click',()=>start(false));
+
+// difficulty pills (footer)
+function syncDifficultyUI(){
+  document.querySelectorAll('.pill').forEach(p=>
+    p.setAttribute('aria-pressed', parseInt(p.dataset.level,10)===currentLevel ? 'true':'false'));
+  document.querySelectorAll('#openDiff button').forEach(p=>
+    p.setAttribute('aria-pressed', parseInt(p.dataset.level,10)===currentLevel ? 'true':'false'));
+}
+document.querySelectorAll('.pill').forEach(pill=>{
+  pill.addEventListener('click',()=>{
+    currentLevel=parseInt(pill.dataset.level,10);
+    syncDifficultyUI();
+  });
+});
+// difficulty buttons inside the opening prompt
+document.querySelectorAll('#openDiff button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    currentLevel=parseInt(btn.dataset.level,10);
+    syncDifficultyUI();
+  });
+});
+const openingEl=document.getElementById('opening');
+const panes={welcome:document.getElementById('paneWelcome'),
+             rules:document.getElementById('paneRules'),
+             setup:document.getElementById('paneSetup')};
+
+function showPane(name){
+  for(const k in panes) panes[k].classList.toggle('hidden', k!==name);
+}
+
+// flow buttons
+document.getElementById('toRules').addEventListener('click',()=>showPane('rules'));
+document.getElementById('toSetup').addEventListener('click',()=>{ showPane('setup'); syncDifficultyUI(); });
+
+// start a fresh board. firstTime -> full welcome flow; otherwise jump to setup.
+function start(firstTime){
+  state=JSON.parse(JSON.stringify(START));
+  selected=null; turn=null; gameOver=false; last={from:null,to:null};
+  build();
+  statusEl.textContent=' '; statusEl.className='status';
+  showPane(firstTime ? 'welcome' : 'setup');
+  if(!firstTime) syncDifficultyUI();
+  openingEl.classList.remove('hidden');
+}
+
+function beginGame(opener){
+  if(opener==='random') opener = Math.random()<0.5 ? 'p1' : 'p2';
+  openingEl.classList.add('hidden');
+  if(opener==='p1'){
+    turn='p1';
+    statusEl.textContent='Your move.'; statusEl.className='status';
+    if(allMoves('p1').length===0){
+      statusEl.textContent='You are snookered. Red opens.';
+      turn='p2'; render(); setTimeout(redMove,400); return;
+    }
+    render();
+  }else{
+    turn='p2';
+    statusEl.textContent='Red opens…'; statusEl.className='status';
+    render();
+    setTimeout(redMove,300);
+  }
+}
+
+document.querySelectorAll('.opening button[data-open]').forEach(b=>{
+  b.addEventListener('click',()=>beginGame(b.dataset.open));
+});
+
+start(true);
+</script>
+</body>
+</html>
