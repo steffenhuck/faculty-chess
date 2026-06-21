@@ -22,11 +22,11 @@
     background:var(--paper);color:var(--ink);
     font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
     display:flex;flex-direction:column;align-items:center;
-    padding:26px 16px 48px;-webkit-font-smoothing:antialiased;
+    padding:52px 16px 48px;-webkit-font-smoothing:antialiased;
   }
   header{text-align:center;margin-bottom:18px;max-width:540px;}
-  h1{font-size:23px;font-weight:600;letter-spacing:.02em;margin:0 0 6px;text-transform:uppercase;}
-  .sub{font-size:12.5px;color:#6a6656;line-height:1.5;font-style:italic;}
+  h1{font-size:44px;font-weight:600;letter-spacing:.01em;line-height:1.05;margin:0 0 12px;text-transform:uppercase;}
+  .sub{font-size:16px;color:#6a6656;line-height:1.55;font-style:italic;}
   .boardwrap{
     position:relative;padding:26px;
     background:repeating-linear-gradient(45deg,#efece2 0 2px,transparent 2px 9px),#efece2;
@@ -65,6 +65,8 @@
   .p2{background:var(--p2);color:#f0e4e0;}
   .piece.moved{animation:pop .28s ease;}
   @keyframes pop{0%{transform:scale(.7);}60%{transform:scale(1.12);}100%{transform:scale(1);}}
+  .gamechrome{display:flex;flex-direction:column;align-items:center;width:100%;}
+  .gamechrome.hidden{display:none;}
   .status{margin-top:18px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;
     color:#55513f;font-family:ui-monospace,monospace;min-height:16px;text-align:center;}
   .status.win{color:var(--p1);font-weight:600;}
@@ -171,8 +173,9 @@
     <div class="pane hidden" id="paneRules">
       <h2>How it works</h2>
       <ul class="rules">
-        <li>Each piece moves a fixed distance in a straight line — full professor <b>3</b>,
-          associate <b>2</b>, assistant <b>1</b>. It must spend the whole distance, and can't jump.</li>
+        <li>Each piece moves a fixed number of steps, vertically or horizontally or both —
+          full professor <b>3</b>, associate <b>2</b>, assistant <b>1</b>. It must spend every
+          step, and can't jump over a piece.</li>
         <li>Land on a rival piece to remove it.</li>
         <li>Take the other faculty's last piece to win.</li>
       </ul>
@@ -201,6 +204,7 @@
   </div>
 </div>
 
+<div class="gamechrome hidden" id="gamechrome">
 <div class="status" id="status">Your move.</div>
 
 <div class="score" id="score">
@@ -223,6 +227,7 @@
 
 <div class="bar">
   <button class="reset" id="reset">New game</button>
+</div>
 </div>
 
 <script>
@@ -612,11 +617,13 @@ function start(firstTime){
   showPane(firstTime ? 'welcome' : 'setup');
   if(!firstTime) syncDifficultyUI();
   openingEl.classList.remove('hidden');
+  document.getElementById('gamechrome').classList.add('hidden');
 }
 
 function beginGame(opener){
   if(opener==='random') opener = Math.random()<0.5 ? 'p1' : 'p2';
   openingEl.classList.add('hidden');
+  document.getElementById('gamechrome').classList.remove('hidden');
   if(opener==='p1'){
     turn='p1';
     statusEl.textContent='Your move.'; statusEl.className='status';
